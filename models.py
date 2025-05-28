@@ -192,19 +192,22 @@ class Case(CaseBase):
     
     # You can add additional fields here as the requirements evolve
     customer_id: Optional[UUID] = None
+    customer_company: Optional[str] = None  # Company name of the customer
     tags: List[str] = Field(default_factory=list)
     external_reference: Optional[str] = None
     
     @classmethod
     def create_new(cls, title: str, description: Optional[str] = None, 
                   priority: Priority = Priority.MEDIUM, component_id: Optional[UUID] = None,
-                  creator_id: Optional[UUID] = None, creator_name: Optional[str] = None) -> "Case":
+                  creator_id: Optional[UUID] = None, creator_name: Optional[str] = None,
+                  customer_company: Optional[str] = None) -> "Case":
         """Create a new case with initial action timestamp"""
         case = cls(
             title=title,
             description=description,
             priority=priority,
-            component_id=component_id
+            component_id=component_id,
+            customer_company=customer_company
         )
         
         # Add creation action
@@ -212,7 +215,7 @@ class Case(CaseBase):
             ActionType.CREATED,
             performed_by_id=creator_id,
             performed_by_name=creator_name,
-            details=f"Case '{title}' created"
+            details=f"Case '{title}' created for {customer_company or 'unknown customer'}"
         )
         
         return case
@@ -225,6 +228,7 @@ class CreateCaseRequest(BaseModel):
     description: Optional[str] = None
     priority: Priority = Priority.MEDIUM
     component_id: Optional[UUID] = None
+    customer_company: Optional[str] = None
 
 
 class UpdateCaseRequest(BaseModel):

@@ -137,6 +137,7 @@ def list_all_cases() -> str:
     return result
 
 
+
 llm = init_chat_model(model="gpt-4o-mini", temperature=0)
 tools = [create_case, list_all_cases]
 llm_with_tools = llm.bind_tools(tools)

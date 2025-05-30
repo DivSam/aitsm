@@ -8,6 +8,7 @@ from typing import Annotated, TypedDict
 from langgraph.graph.message import add_messages
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, StateGraph, START
+from langchain_core.messages import HumanMessage
 
 
 load_dotenv()
@@ -34,6 +35,28 @@ support_agent = Assignee(
     name="Alex Rodriguez",
     email="alex.r@company.com",
     department="Customer Support"
+)
+
+# Create additional assignees for different teams
+api_dev = Assignee(
+    id="dev003",
+    name="Jennifer Martinez",
+    email="jen.m@company.com",
+    department="API Development"
+)
+
+database_admin = Assignee(
+    id="dba001", 
+    name="Robert Kim",
+    email="robert.k@company.com",
+    department="Database Administration"
+)
+
+security_analyst = Assignee(
+    id="sec001",
+    name="Emma Thompson", 
+    email="emma.t@company.com",
+    department="Security Team"
 )
 
 # Create timeline
@@ -121,56 +144,9 @@ case = Case(
 # Add to store
 case_store[case.id] = case
 
-print("="*80)
-print("📋 CASE CREATED: WebApp Run Job Button Issue")
-print("="*80)
-
-print(f"📝 CASE DETAILS:")
-print(f"   ID: {case.id}")
-print(f"   Title: {case.title}")
-print(f"   Description: {case.description}")
-print(f"   Priority: {case.priority.value.upper()}")
-print(f"   Final State: {case.state.value.upper()}")
-print(f"   Final Component: {case.component.value.upper()}")
-print(f"   Final Assignee: {case.assignee.name} ({case.assignee.department})")
-print(f"   Created: {case.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-print(f"   Resolved: {case.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
-
-print(f"\n📅 CHANGE HISTORY ({len(case.change_history)} changes):")
-for i, change in enumerate(case.change_history):
-    print(f"   {i+1}. [{change.changed_at.strftime('%Y-%m-%d %H:%M:%S')}] {change.field.upper()}")
-    print(f"      └─ Changed from '{change.old_value}' to '{change.new_value}'")
-
-print(f"\n💬 COMMENTS ({len(case.comments)} comments):")
-for i, comment in enumerate(case.comments):
-    comment_time = datetime.fromisoformat(comment.created_at).strftime('%Y-%m-%d %H:%M:%S')
-    print(f"   {i+1}. [{comment_time}] {comment.author}")
-    print(f"      └─ {comment.content}")
-
-print(f"\n👥 TEAM MEMBERS INVOLVED:")
-print(f"   📞 {support_agent.name} ({support_agent.department}) - Initial case handling")
-print(f"   🌐 {webapp_dev.name} ({webapp_dev.department}) - Initial investigation")
-print(f"   📊 {applog_dev.name} ({applog_dev.department}) - Root cause analysis & resolution")
-
-print(f"\n🔍 CASE SUMMARY:")
-print(f"   • Initial Report: WebApp hanging on 'run job' button click")
-print(f"   • Initial Assignment: WebApp Development (frontend investigation)")
-print(f"   • Root Cause Discovery: AppLog component deadlock during concurrent logging")
-print(f"   • Component Reassignment: WebApp → AppLog")
-print(f"   • Resolution: Async logging with queue management implemented")
-print(f"   • Customer Outcome: 'Run job' button now works correctly")
-
-print("\n" + "="*80)
-print("✅ CASE RESOLUTION COMPLETED")
-print("="*80)
-
-
-
-
-
-
+# Create the incoming case for Scenario 1
 incoming_case = Case(
-    id="CASE-2024-002",  # Different ID from the historical case
+    id="CASE-2025-002",  # Different ID from the historical case
     title="WebApp Hangs When Clicking Run Job Button",
     description="Customer reports that clicking the 'run job' button causes the entire web application to hang and become unresponsive. This makes the app completely unusable for their business operations.",
     priority=Priority.HIGH,
@@ -300,11 +276,31 @@ def add_comment(case_id: str, message: str):
     case.comments.append(comment)
     return f"Added comment to case {case_id}: {message}"
 
+@tool
+def review_app_design(case_id: str, message: str):
+    """ Review the app design and suggest a workaround for the customer. In real life, you could have all the documentation for your app here"""
+    if case_id not in case_store:
+        return f"Case {case_id} not found"
+    
+    case = case_store[case_id]
+    return f"Non-Admin users are not permitted to create new jobs"
+
+@tool
+def synthesize_comments(case_id: str, message: str):
+    """ Synthesize all the comments into one comment."""
+    if case_id not in case_store:
+        return f"Case {case_id} not found"
+    
+    return f"Here is the summary of the comments: \n\n {message}"
+
+
+
+
 
 
 llm = init_chat_model(model="gpt-4o-mini", temperature=0)
-llm_with_tools = llm.bind_tools([check_past_cases, change_case_component, change_case_assignee, change_case_state, change_case_priority, add_comment])
-tool_node = ToolNode(tools=[check_past_cases, change_case_component, change_case_assignee, change_case_state, change_case_priority, add_comment])
+llm_with_tools = llm.bind_tools([check_past_cases, change_case_component, change_case_assignee, change_case_state, change_case_priority, add_comment, review_app_design, synthesize_comments])
+tool_node = ToolNode(tools=[check_past_cases, change_case_component, change_case_assignee, change_case_state, change_case_priority, add_comment, review_app_design, synthesize_comments])
 
 
 class State(TypedDict):
@@ -320,6 +316,8 @@ def agent(state: State) -> State:
     - change_case_state: Change the state of the current case.
     - change_case_priority: Change the priority of the current case.
     - add_comment: Add a comment to the current case.
+    - review_app_design: Review the app design and suggest a workaround for the customer. In real life, you could have all the documentation for your app here
+    - synthesize_comments: Synthesize all the comments into one comment. This is useful when there are a lot of comments and you need to summarize them for developer or support colleagues
 
     You will be given a case and a message from a customer. You will need to use the tools to help the customer.
     
@@ -327,6 +325,9 @@ def agent(state: State) -> State:
     - {webapp_dev.name} ({webapp_dev.department}) - WebApp Development
     - {applog_dev.name} ({applog_dev.department}) - AppLog Development
     - {support_agent.name} ({support_agent.department}) - Customer Support
+    - {api_dev.name} ({api_dev.department}) - API Development
+    - {database_admin.name} ({database_admin.department}) - Database Administration
+    - {security_analyst.name} ({security_analyst.department}) - Security Team
 
     You will also have access to the following components:
     - {Component.WEBAPP} - WebApp
@@ -340,7 +341,7 @@ def agent(state: State) -> State:
     - {Priority.MEDIUM} - Medium - {Priority.HIGH} - High - {Priority.VERY_HIGH} - Very High You will also have access to the following states: - {CaseState.NEW} - New - {CaseState.IN_PROGRESS} - In Progress
     - {CaseState.AWAITING_CUSTOMER_INFO} - Awaiting Customer Info
     - {CaseState.RESOLVED} - Resolved
-    """.format(webapp_dev=webapp_dev, applog_dev=applog_dev, support_agent=support_agent, Component=Component, Priority=Priority, CaseState=CaseState)
+    """.format(webapp_dev=webapp_dev, applog_dev=applog_dev, support_agent=support_agent, api_dev=api_dev, database_admin=database_admin, security_analyst=security_analyst, Component=Component, Priority=Priority, CaseState=CaseState)
 
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
 
@@ -373,18 +374,13 @@ graph_builder.add_edge("agent", END)
 graph = graph_builder.compile()
 
 print("\n" + "="*80)
-print("🤖 NEW CASE - AGENT PROCESSING")
+print("🤖 SCENARIO 1: NEW CASE - AGENT PROCESSING")
 print("="*80)
 
-print(f"\n📝 INCOMING CASE DETAILS:")
-print(f"   ID: {incoming_case.id}")
+print(f"\n📝 INCOMING CASE: {incoming_case.id}")
 print(f"   Title: {incoming_case.title}")
-print(f"   Description: {incoming_case.description}")
-print(f"   Priority: {incoming_case.priority.value.upper()}")
-print(f"   Current State: {incoming_case.state.value.upper()}")
-print(f"   Current Assignee: {incoming_case.assignee.name} ({incoming_case.assignee.department})")
 print(f"   Current Component: {incoming_case.component.value.upper()}")
-print(f"   Created: {incoming_case.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"   Current Assignee: {incoming_case.assignee.name}")
 
 # Create initial message with case details for the agent
 initial_message = f"""
@@ -401,45 +397,220 @@ CREATED: {incoming_case.created_at.strftime('%Y-%m-%d %H:%M:%S')}
 """
 
 # Invoke the graph with the case information
-from langchain_core.messages import HumanMessage
+def display_tool_calls(messages):
+    """Display tool calls with their IDs."""
+    for message in messages:
+        if hasattr(message, 'tool_calls') and message.tool_calls:
+            for tool_call in message.tool_calls:
+                print(f"🔧 TOOL CALL: {tool_call['name']} (ID: {tool_call['id']})")
+                if tool_call.get('args'):
+                    for key, value in tool_call['args'].items():
+                        print(f"   └─ {key}: {value}")
 
 result = graph.invoke({
     "messages": [HumanMessage(content=initial_message)]
 })
 
-print(f"\n🤖 AGENT ANALYSIS:")
-print(f"{result['messages'][-1].content}")
+print(f"\n🔧 TOOL CALLS MADE:")
+display_tool_calls(result['messages'])
 
 # Get the updated case from the store
 updated_case = case_store[incoming_case.id]
 
-print(f"\n📊 CASE STATUS AFTER AGENT PROCESSING:")
-print(f"   ID: {updated_case.id}")
-print(f"   State: {updated_case.state.value.upper()}")
+print(f"\n📊 FINAL CASE STATUS:")
 print(f"   Component: {updated_case.component.value.upper()}")
-print(f"   Assignee: {updated_case.assignee.name} ({updated_case.assignee.department})")
-print(f"   Comments: {len(updated_case.comments)} total")
-print(f"   Changes: {len(updated_case.change_history)} total")
-
-if updated_case.comments:
-    print(f"\n💬 AGENT COMMENTS:")
-    for i, comment in enumerate(updated_case.comments):
-        if comment.author == "AGENT":
-            comment_time = datetime.fromisoformat(comment.created_at).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"   {i+1}. [{comment_time}] {comment.author}")
-            print(f"      └─ {comment.content}")
-
-if updated_case.change_history:
-    print(f"\n📅 CHANGES MADE BY AGENT:")
-    for i, change in enumerate(updated_case.change_history):
-        print(f"   {i+1}. [{change.changed_at.strftime('%Y-%m-%d %H:%M:%S')}] {change.field.upper()}")
-        print(f"      └─ Changed from '{change.old_value}' to '{change.new_value}'")
+print(f"   Assignee: {updated_case.assignee.name}")
+print(f"   Comments: {len(updated_case.comments)}")
+print(f"   Changes: {len(updated_case.change_history)}")
 
 print("\n" + "="*80)
-print("✅ AGENT PROCESSING COMPLETED")
+print("✅ SCENARIO 1 COMPLETED")
 print("="*80)
 
 
+
+
+# Scenario 2: there is a case that has gotten a lot of comments, the agent needs to synthesize everything relevant into one comment.
+
+
+# Create a complex case with many comments from different teams
+complex_case_created = datetime.now() - timedelta(days=7)
+complex_case = Case(
+    id="CASE-2025-003",
+    title="Performance Issues and Intermittent 500 Errors in Production",
+    description="Multiple customers reporting slow response times and intermittent 500 errors across different parts of the application. Issue seems to be affecting the entire platform with no clear pattern.",
+    priority=Priority.VERY_HIGH,
+    state=CaseState.IN_PROGRESS,
+    assignee=webapp_dev,  # Final assignee after investigation
+    component=Component.WEBAPP,  # Final component after investigation
+    created_at=complex_case_created,
+    updated_at=datetime.now(),
+    comments=[
+        Comment(
+            id="comment_complex_001",
+            content="Initial customer reports coming in about slow performance and 500 errors. Creating high priority case. Multiple customers affected across different browsers and devices.",
+            author=support_agent.name,
+            created_at=(complex_case_created).isoformat(),
+            updated_at=(complex_case_created).isoformat()
+        ),
+        Comment(
+            id="comment_complex_002", 
+            content="Database team investigating performance issues. Initial analysis shows database queries are performing normally. Average response times are within acceptable ranges. No blocking queries detected.",
+            author=database_admin.name,
+            created_at=(complex_case_created + timedelta(hours=1)).isoformat(),
+            updated_at=(complex_case_created + timedelta(hours=1)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_003",
+            content="API team analysis: Backend endpoints are responding correctly with normal latency. 500 errors appear to be triggered by malformed requests coming from the frontend. Request payloads contain invalid JSON in some cases.",
+            author=api_dev.name,
+            created_at=(complex_case_created + timedelta(hours=3)).isoformat(),
+            updated_at=(complex_case_created + timedelta(hours=3)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_004",
+            content="Security team investigated potential DDoS or attack vectors. No malicious activity detected. Traffic patterns appear normal. The errors seem to be legitimate user interactions gone wrong.",
+            author=security_analyst.name,
+            created_at=(complex_case_created + timedelta(hours=5)).isoformat(),
+            updated_at=(complex_case_created + timedelta(hours=5)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_005",
+            content="AppLog analysis shows error patterns correlate with specific user actions: form submissions, file uploads, and search queries. Errors spike during peak usage hours. Frontend seems to be sending corrupted data.",
+            author=applog_dev.name,
+            created_at=(complex_case_created + timedelta(days=1)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=1)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_006",
+            content="WebApp team taking over investigation. Found significant memory leaks in React components. DOM nodes not being properly cleaned up, causing browser performance degradation over time.",
+            author=webapp_dev.name,
+            created_at=(complex_case_created + timedelta(days=1, hours=6)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=1, hours=6)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_007",
+            content="Database team confirming: After WebApp team's investigation, we can see the corrupted requests are causing our input validation to throw 500 errors. Backend is working correctly, issue is definitely frontend data corruption.",
+            author=database_admin.name,
+            created_at=(complex_case_created + timedelta(days=2)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=2)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_008",
+            content="WebApp team deep dive: Memory leaks causing JavaScript heap overflow after prolonged usage. This corrupts form data before submission. Implementing proper component lifecycle management and memory cleanup.",
+            author=webapp_dev.name,
+            created_at=(complex_case_created + timedelta(days=2, hours=8)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=2, hours=8)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_009",
+            content="API team confirming fix effectiveness: After WebApp team deployed memory leak fixes, we're no longer receiving malformed requests. 500 error rate dropped significantly.",
+            author=api_dev.name,
+            created_at=(complex_case_created + timedelta(days=3)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=3)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_010",
+            content="WebApp team final update: Deployed comprehensive fix including React component optimization, proper event listener cleanup, and improved state management. Performance monitoring shows normal memory usage patterns.",
+            author=webapp_dev.name,
+            created_at=(complex_case_created + timedelta(days=3, hours=4)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=3, hours=4)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_011",
+            content="AppLog monitoring confirms resolution: Error rates back to baseline 0.1%. No more corrupted request patterns detected. Frontend performance metrics show stable memory usage.",
+            author=applog_dev.name,
+            created_at=(complex_case_created + timedelta(days=4)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=4)).isoformat()
+        ),
+        Comment(
+            id="comment_complex_012",
+            content="Support team update: Customer reports confirm resolution. No more performance complaints or 500 errors reported. Users experiencing normal application responsiveness. Case ready for closure.",
+            author=support_agent.name,
+            created_at=(complex_case_created + timedelta(days=4, hours=6)).isoformat(),
+            updated_at=(complex_case_created + timedelta(days=4, hours=6)).isoformat()
+        )
+    ],
+    change_history=[
+        Change(
+            field="priority",
+            old_value="high",
+            new_value="very_high",
+            changed_at=complex_case_created + timedelta(hours=2)
+        ),
+        Change(
+            field="assignee", 
+            old_value=support_agent.name,
+            new_value=database_admin.name,
+            changed_at=complex_case_created + timedelta(hours=1)
+        ),
+        Change(
+            field="assignee",
+            old_value=database_admin.name,
+            new_value=webapp_dev.name,
+            changed_at=complex_case_created + timedelta(days=1, hours=6)
+        ),
+        Change(
+            field="component",
+            old_value="other",
+            new_value="webapp", 
+            changed_at=complex_case_created + timedelta(days=1, hours=6)
+        )
+    ]
+)
+
+# Add to case store
+case_store[complex_case.id] = complex_case
+
+print("\n" + "="*80)
+print("📋 SCENARIO 2: COMPLEX CASE WITH MULTIPLE TEAM COMMENTS")
+print("="*80)
+
+print(f"\n📝 CASE: {complex_case.id}")
+print(f"   Title: {complex_case.title}")
+print(f"   Component: {complex_case.component.value.upper()}")
+print(f"   Assignee: {complex_case.assignee.name}")
+print(f"   Total Comments: {len(complex_case.comments)}")
+
+print(f"\n🤖 AGENT PROCESSING CASE...")
+
+# Create message asking agent to synthesize all the comments
+synthesis_message = f"""
+Case received that needs analysis and action:
+
+CASE ID: {complex_case.id}
+TITLE: {complex_case.title}
+DESCRIPTION: {complex_case.description}
+PRIORITY: {complex_case.priority.value.upper()}
+CURRENT STATE: {complex_case.state.value.upper()}
+CURRENT ASSIGNEE: {complex_case.assignee.name} ({complex_case.assignee.department})
+CURRENT COMPONENT: {complex_case.component.value.upper()}
+CREATED: {complex_case.created_at.strftime('%Y-%m-%d %H:%M:%S')}
+
+Please analyze this case and determine what actions need to be taken.
+"""
+
+# Process through the agent
+result = graph.invoke({
+    "messages": [HumanMessage(content=synthesis_message)]
+})
+
+print(f"\n🔧 TOOL CALLS MADE:")
+display_tool_calls(result['messages'])
+
+# Show the updated case
+updated_complex_case = case_store[complex_case.id]
+print(f"\n📊 FINAL CASE STATUS:")
+print(f"   Total Comments: {len(updated_complex_case.comments)}")
+
+print("\n" + "="*80)
+print("✅ SCENARIO 2 COMPLETED")
+print("="*80)
+
+# state of things currently, it's agenting kind of well, but I am having issues with add_comment and synthesize comments choice, review agent prompt
+
+
+# Scenario 3: A case comes in where the customer cannot achieve something, but it's because the app is not designed to support that behavior. Suggest a workaround
 
 
 

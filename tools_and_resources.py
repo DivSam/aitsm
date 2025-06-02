@@ -173,7 +173,24 @@ def review_app_design(case_id: str, message: str):
         return f"Case {case_id} not found"
     
     case = case_store[case_id]
-    return f"Non-Admin users are not permitted to create new jobs"
+    
+    # Add a comment with the design explanation
+    comment = Comment(
+        id=f"DesignComment{len(case.comments) + 1}",
+        content="DESIGN LIMITATION: Non-Admin users are not permitted to create new jobs. This is by design for security reasons. WORKAROUND: Please contact your administrator to either: 1) Grant you admin privileges, or 2) Have an admin create the job on your behalf.",
+        author="AGENT",
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat()
+    )
+    case.comments.append(comment)
+    case.change_history.append(Change(
+        field="comments",
+        old_value=None,
+        new_value=comment.content,
+        changed_at=datetime.now()
+    ))
+    
+    return f"Design review completed for case {case_id}. This is a design limitation, not a bug. Workaround provided to customer."
 
 @tool
 def synthesize_comments(case_id: str, message: str):

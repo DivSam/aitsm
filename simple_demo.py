@@ -190,7 +190,7 @@ def change_case_component(case_id: str, component: str):
 
 @tool
 def change_case_assignee(case_id: str, assignee_id: str):
-    """ Change the assignee of the specified case. Use assignee IDs: dev001 (Sarah Johnson - WebApp), dev002 (Mike Chen - AppLog), support001 (Alex Rodriguez - Support)"""
+    """ Change the assignee of the specified case. Use assignee IDs: dev001 (Sarah Johnson - WebApp), dev002 (Mike Chen - AppLog), dev003 (Jennifer Martinez - API), dba001 (Robert Kim - Database), sec001 (Emma Thompson - Security), support001 (Alex Rodriguez - Support)"""
     if case_id not in case_store:
         return f"Case {case_id} not found"
     
@@ -201,6 +201,9 @@ def change_case_assignee(case_id: str, assignee_id: str):
     assignee_map = {
         "dev001": webapp_dev,
         "dev002": applog_dev,
+        "dev003": api_dev,
+        "dba001": database_admin,
+        "sec001": security_analyst,
         "support001": support_agent
     }
     
@@ -310,13 +313,13 @@ class State(TypedDict):
 def agent(state: State) -> State:
     system_prompt = """You are an IT Service Management (ITSM) assistant. Your job is to help customers with their support cases.
     You have the following tools at your disposal:
+    - review_app_design: Review the app design and suggest a workaround for the customer. In real life, you could have all the documentation for your app here. THIS IS THE FIRST THING YOU SHOULD CHECK AS THE ANSWER COULD BE RIGHT THERE.
     - check_past_cases: Check past cases that are similar to the current case via something like vector search.
     - change_case_component: Change the component of the current case.
     - change_case_assignee: Change the assignee of the current case.
     - change_case_state: Change the state of the current case.
     - change_case_priority: Change the priority of the current case.
     - add_comment: Add a comment to the current case.
-    - review_app_design: Review the app design and suggest a workaround for the customer. In real life, you could have all the documentation for your app here
     - synthesize_comments: Synthesize all the comments into one comment. This is useful when there are a lot of comments and you need to summarize them for developer or support colleagues
 
     You will be given a case and a message from a customer. You will need to use the tools to help the customer.
@@ -608,8 +611,69 @@ print("✅ SCENARIO 2 COMPLETED")
 print("="*80)
 
 
-
 # Scenario 3: A case comes in where the customer cannot achieve something, but it's because the app is not designed to support that behavior. Suggest a workaround
+
+# Create a case for permissions issue
+permissions_case = Case(
+    id="CASE-2025-004",
+    title="Cannot Create New Job - Permission Denied Error",
+    description="Customer reports that when they try to create a new job using their regular user account, they get a 'Permission Denied' error. They need to be able to create jobs for their daily workflow but the system is blocking them.",
+    priority=Priority.MEDIUM,
+    state=CaseState.NEW,
+    assignee=support_agent,
+    component=Component.WEBAPP,
+    created_at=datetime.now() - timedelta(hours=2),
+    updated_at=datetime.now() - timedelta(hours=2),
+    comments=[],
+    change_history=[]
+)
+
+# Store the permissions case
+case_store[permissions_case.id] = permissions_case
+
+print("\n" + "="*80)
+print("🤖 SCENARIO 3: PERMISSIONS ISSUE - AGENT PROCESSING")
+print("="*80)
+
+print(f"\n📝 INCOMING CASE: {permissions_case.id}")
+print(f"   Title: {permissions_case.title}")
+print(f"   Current Component: {permissions_case.component.value.upper()}")
+print(f"   Current Assignee: {permissions_case.assignee.name}")
+
+# Create message for the permissions case
+permissions_message = f"""
+New case received that needs analysis and routing:
+
+CASE ID: {permissions_case.id}
+TITLE: {permissions_case.title}
+DESCRIPTION: {permissions_case.description}
+PRIORITY: {permissions_case.priority.value.upper()}
+CURRENT STATE: {permissions_case.state.value.upper()}
+CURRENT ASSIGNEE: {permissions_case.assignee.name} ({permissions_case.assignee.department})
+CURRENT COMPONENT: {permissions_case.component.value.upper()}
+CREATED: {permissions_case.created_at.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+
+# Process through the agent
+result = graph.invoke({
+    "messages": [HumanMessage(content=permissions_message)]
+})
+
+print(f"\n🔧 TOOL CALLS MADE:")
+display_tool_calls(result['messages'])
+
+# Get the updated case from the store
+updated_permissions_case = case_store[permissions_case.id]
+
+print(f"\n📊 FINAL CASE STATUS:")
+print(f"   Component: {updated_permissions_case.component.value.upper()}")
+print(f"   Assignee: {updated_permissions_case.assignee.name}")
+print(f"   Comments: {len(updated_permissions_case.comments)}")
+print(f"   Changes: {len(updated_permissions_case.change_history)}")
+
+print("\n" + "="*80)
+print("✅ SCENARIO 3 COMPLETED")
+print("="*80)
 
 
 

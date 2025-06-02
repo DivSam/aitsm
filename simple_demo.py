@@ -287,7 +287,7 @@ def review_app_design(case_id: str, message: str):
 
 @tool
 def synthesize_comments(case_id: str, message: str):
-    """ Synthesize all the comments into one comment."""
+    """ Synthesize all the comments into one comment. We assume that we have some logic in place to determine when this needs to be called depending on external vs internal message"""
     if case_id not in case_store:
         return f"Case {case_id} not found"
     
@@ -587,7 +587,7 @@ CURRENT ASSIGNEE: {complex_case.assignee.name} ({complex_case.assignee.departmen
 CURRENT COMPONENT: {complex_case.component.value.upper()}
 CREATED: {complex_case.created_at.strftime('%Y-%m-%d %H:%M:%S')}
 
-Please analyze this case and determine what actions need to be taken.
+Please read through this case and synthesize for the developer colleagues who will take over investigation.
 """
 
 # Process through the agent
@@ -607,7 +607,6 @@ print("\n" + "="*80)
 print("✅ SCENARIO 2 COMPLETED")
 print("="*80)
 
-# state of things currently, it's agenting kind of well, but I am having issues with add_comment and synthesize comments choice, review agent prompt
 
 
 # Scenario 3: A case comes in where the customer cannot achieve something, but it's because the app is not designed to support that behavior. Suggest a workaround

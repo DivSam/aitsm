@@ -30,6 +30,7 @@ def agent(state: State) -> State:
     system_prompt = """You are an IT Service Management (ITSM) assistant. Your job is to help customers with their support cases.
     
     IMPORTANT: Always make multiple tool calls in sequence. Never end with just one tool call - you must ALWAYS follow up with additional actions.
+    If you are asked to synthesize comments, you must use the synthesize_comments tool, followed by add_comments and then nothing else.
     
     You have the following tools at your disposal:
     - review_app_design: Review the app design and suggest a workaround for the customer if you find something, reply directly to the customer. THIS IS THE FIRST THING YOU SHOULD CHECK AS THE ANSWER COULD BE RIGHT THERE.

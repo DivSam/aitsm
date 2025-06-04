@@ -30,6 +30,29 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 
+def print_state_info(state: State, node_name: str, step_type: str = "ENTERING"):
+    """Print the complete messages being added."""
+    if step_type == "EXITING" and state['messages']:
+        last_msg = state['messages'][-1]
+        print(f"\n📝 {node_name} added message:")
+        
+        if hasattr(last_msg, 'tool_calls') and last_msg.tool_calls:
+            print(f"   └─ Tool calls:")
+            for tc in last_msg.tool_calls:
+                print(f"      🔧 {tc['name']}")
+                if tc.get('args'):
+                    for key, value in tc['args'].items():
+                        # Truncate very long values but show more than before
+                        if isinstance(value, str) and len(value) > 300:
+                            value_display = value[:300] + "..."
+                        else:
+                            value_display = value
+                        print(f"         └─ {key}: {value_display}")
+        elif hasattr(last_msg, 'content') and last_msg.content:
+            print(f"   └─ Content:")
+            print(f"      {last_msg.content}")
+
+
 def agent(state: State) -> State:
     system_prompt = """You are an IT Service Management (ITSM) assistant. Your job is to help customers with their support cases.
     
@@ -78,9 +101,9 @@ def agent(state: State) -> State:
     """.format(webapp_dev=webapp_dev, applog_dev=applog_dev, support_agent=support_agent, api_dev=api_dev, database_admin=database_admin, security_analyst=security_analyst, Component=Component, Priority=Priority, CaseState=CaseState)
 
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
-
     response = llm_with_tools.invoke(messages)
-
+    
+    print_state_info({"messages": [response]}, "AGENT", "EXITING")
     return {"messages": [response]}
 
 
@@ -93,8 +116,8 @@ def should_continue(state: State):
         return END
 
 
+# Graph building
 graph_builder = StateGraph(State)
-
 graph_builder.add_node("agent", agent)
 graph_builder.add_node("tools", tool_node)
 graph_builder.add_edge(START, "agent")
@@ -104,21 +127,24 @@ graph_builder.add_conditional_edges("agent", should_continue, {
 })
 graph_builder.add_edge("tools", "agent")
 graph_builder.add_edge("agent", END)
-
 graph = graph_builder.compile()
 
 # Configure recursion limit and add debugging
 config = {"recursion_limit": 10}  # Lower limit to catch issues faster
 
-def display_tool_calls(messages):
-    """Display tool calls with their IDs."""
-    for message in messages:
+def display_raw_messages(result, scenario_name):
+    """Display the complete raw StateGraph messages."""
+    print(f"\n📋 COMPLETE STATEGRAPH MESSAGES FOR {scenario_name}:")
+    print("="*60)
+    for i, message in enumerate(result['messages']):
+        print(f"\nMessage {i+1}:")
+        print(f"Type: {type(message).__name__}")
+        if hasattr(message, 'content') and message.content:
+            print(f"Content: {message.content}")
         if hasattr(message, 'tool_calls') and message.tool_calls:
-            for tool_call in message.tool_calls:
-                print(f"🔧 TOOL CALL: {tool_call['name']} (ID: {tool_call['id']})")
-                if tool_call.get('args'):
-                    for key, value in tool_call['args'].items():
-                        print(f"   └─ {key}: {value}")
+            print(f"Tool Calls: {message.tool_calls}")
+    print("="*60)
+
 
 def display_case_info(case, title="CASE INFO"):
     """Display detailed case information."""
@@ -173,9 +199,6 @@ result = graph.invoke({
     "messages": [HumanMessage(content=initial_message)]
 }, config=config)
 
-print(f"\n🔧 TOOL CALLS MADE:")
-display_tool_calls(result['messages'])
-
 # Get the updated case from the store
 updated_case = case_store[incoming_case.id]
 
@@ -184,6 +207,8 @@ display_case_info(updated_case, "AFTER - CASE PROCESSED")
 print("\n" + "="*80)
 print("✅ SCENARIO 1 COMPLETED")
 print("="*80)
+
+display_raw_messages(result, "SCENARIO 1")
 
 
 # Scenario 2: there is a case that has gotten a lot of comments, the agent needs to synthesize everything relevant into one comment.
@@ -217,9 +242,6 @@ result = graph.invoke({
     "messages": [HumanMessage(content=synthesis_message)]
 }, config=config)
 
-print(f"\n🔧 TOOL CALLS MADE:")
-display_tool_calls(result['messages'])
-
 # Show the updated case
 updated_complex_case = case_store[complex_case.id]
 
@@ -228,6 +250,8 @@ display_case_info(updated_complex_case, "AFTER - CASE PROCESSED")
 print("\n" + "="*80)
 print("✅ SCENARIO 2 COMPLETED")
 print("="*80)
+
+display_raw_messages(result, "SCENARIO 2")
 
 
 # Scenario 3: A case comes in where the customer cannot achieve something, but it's because the app is not designed to support that behavior. Suggest a workaround
@@ -257,9 +281,6 @@ result = graph.invoke({
     "messages": [HumanMessage(content=permissions_message)]
 }, config=config)
 
-print(f"\n🔧 TOOL CALLS MADE:")
-display_tool_calls(result['messages'])
-
 # Get the updated case from the store
 updated_permissions_case = case_store[permissions_case.id]
 
@@ -268,6 +289,8 @@ display_case_info(updated_permissions_case, "AFTER - CASE PROCESSED")
 print("\n" + "="*80)
 print("✅ SCENARIO 3 COMPLETED")
 print("="*80)
+
+display_raw_messages(result, "SCENARIO 3")
 
 def debug_graph_execution(result):
     """Debug function to see what happened during graph execution."""
@@ -279,6 +302,7 @@ def debug_graph_execution(result):
         else:
             print(f"   Message {i}: Response (no tool calls)")
     print()
+
 
 
 
